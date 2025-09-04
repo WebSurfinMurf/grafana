@@ -52,6 +52,15 @@ docker run -d \
   -e GF_INSTALL_PLUGINS=redis-datasource \
   -e GF_SERVER_ROOT_URL=https://grafana.ai-servicers.com \
   -e GF_SERVER_SERVE_FROM_SUB_PATH=false \
+  -e GF_AUTH_PROXY_ENABLED=true \
+  -e GF_AUTH_PROXY_HEADER_NAME=X-Forwarded-User \
+  -e GF_AUTH_PROXY_HEADER_PROPERTY=username \
+  -e GF_AUTH_PROXY_AUTO_SIGN_UP=true \
+  -e GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN=false \
+  -e GF_AUTH_PROXY_WHITELIST=172.16.0.0/12,10.0.0.0/8,192.168.0.0/16 \
+  -e GF_USERS_ALLOW_SIGN_UP=true \
+  -e GF_USERS_AUTO_ASSIGN_ORG=true \
+  -e GF_USERS_AUTO_ASSIGN_ORG_ROLE=Admin \
   -v "$DATA_DIR:/var/lib/grafana" \
   grafana/grafana:latest
 
@@ -86,6 +95,8 @@ docker run -d \
   -e OAUTH2_PROXY_PASS_ACCESS_TOKEN=true \
   -e OAUTH2_PROXY_PASS_USER_HEADERS=true \
   -e OAUTH2_PROXY_SET_XAUTHREQUEST=true \
+  -e OAUTH2_PROXY_SET_AUTHORIZATION_HEADER=true \
+  -e OAUTH2_PROXY_PREFER_EMAIL_TO_USER=true \
   -l traefik.enable=true \
   -l traefik.http.routers.grafana.rule="Host(\`grafana.ai-servicers.com\`)" \
   -l traefik.http.routers.grafana.entrypoints=websecure \

@@ -4,17 +4,18 @@
 Grafana is the central visualization platform for the monitoring stack, providing dashboards and exploration tools for logs (from Loki) and metrics (from Prometheus/Netdata). Protected by Keycloak OAuth2 authentication with automatic SSO for administrators group.
 
 ## Current Status
-- **Status**: ⚠️ Container Running but May Have Issues
+- **Status**: ✅ Fully Operational with Keycloak SSO
 - **URL**: https://grafana.ai-servicers.com
-- **Container**: grafana (running 46+ minutes)
-- **Auth Container**: grafana-auth-proxy (recently restarted)
-- **Networks**: observability-net, traefik-proxy
-- **Authentication**: Keycloak OAuth2 via proxy
+- **Container**: grafana (running normally)
+- **Auth Container**: grafana-auth-proxy (running normally)
+- **Networks**: observability-net, traefik-proxy, keycloak-net
+- **Authentication**: Keycloak OAuth2 with automatic login (header-based auth)
 
-## Known Issues
-- **OAuth2 Proxy Restarts**: Auth proxy was restarted 13 seconds ago (was running 46 min)
-- **Permission Issues**: Initial deployment had data directory permission errors
-- **Running as Root**: Container runs as root to work around permission issues
+## Authentication Flow
+- Users authenticate via Keycloak OAuth2
+- OAuth2 proxy passes user info to Grafana via X-Forwarded-User header
+- Grafana automatically creates and logs in users (no manual login required)
+- All authenticated users get Admin role automatically
 
 ## Architecture
 ```
@@ -52,6 +53,11 @@ grafana-auth-proxy (:4180)
 -e GF_SECURITY_ADMIN_PASSWORD=admin
 -e GF_INSTALL_PLUGINS=redis-datasource
 -e GF_SERVER_ROOT_URL=https://grafana.ai-servicers.com
+# Auth proxy settings
+-e GF_AUTH_PROXY_ENABLED=true
+-e GF_AUTH_PROXY_HEADER_NAME=X-Forwarded-User
+-e GF_AUTH_PROXY_AUTO_SIGN_UP=true
+-e GF_USERS_AUTO_ASSIGN_ORG_ROLE=Admin
 ```
 
 ### OAuth2 Proxy Configuration
@@ -65,6 +71,16 @@ grafana-auth-proxy (:4180)
 -e OAUTH2_PROXY_CLIENT_ID=grafana
 -e OAUTH2_PROXY_CLIENT_SECRET=LXbr6VMZELA4e55Zhfa7ZTYshH55ZOIK
 -e OAUTH2_PROXY_UPSTREAMS=http://grafana:3000/
+# OIDC Discovery bypass (fixes issuer URL mismatch)
+-e OAUTH2_PROXY_SKIP_OIDC_DISCOVERY=true
+-e OAUTH2_PROXY_OIDC_JWKS_URL=http://keycloak:8080/realms/master/protocol/openid-connect/certs
+-e OAUTH2_PROXY_LOGIN_URL=https://keycloak.ai-servicers.com/realms/master/protocol/openid-connect/auth
+-e OAUTH2_PROXY_REDEEM_URL=http://keycloak:8080/realms/master/protocol/openid-connect/token
+-e OAUTH2_PROXY_OIDC_ISSUER_URL=https://keycloak.ai-servicers.com/realms/master
+# Header passing for automatic login
+-e OAUTH2_PROXY_PASS_USER_HEADERS=true
+-e OAUTH2_PROXY_PREFER_EMAIL_TO_USER=true
+-e OAUTH2_PROXY_SET_AUTHORIZATION_HEADER=true
 ```
 
 ## Common Operations
@@ -171,6 +187,28 @@ grep CLIENT_SECRET /home/administrator/projects/secrets/grafana.env
 curl https://grafana.ai-servicers.com/oauth2/userinfo
 ```
 
+### Issue: OAuth2 Proxy Can't Connect to Keycloak
+**Symptoms**: Logs show "i/o timeout" or "issuer did not match" errors
+**Solution**: Use OIDC discovery bypass configuration:
+```bash
+# These settings are already in deploy.sh:
+OAUTH2_PROXY_SKIP_OIDC_DISCOVERY=true
+OAUTH2_PROXY_OIDC_JWKS_URL=http://keycloak:8080/realms/master/protocol/openid-connect/certs
+OAUTH2_PROXY_LOGIN_URL=https://keycloak.ai-servicers.com/realms/master/protocol/openid-connect/auth
+OAUTH2_PROXY_REDEEM_URL=http://keycloak:8080/realms/master/protocol/openid-connect/token
+```
+
+### Issue: Still Asked for Username/Password in Grafana
+**Symptoms**: After Keycloak authentication, Grafana shows login form
+**Solution**: Ensure auth proxy settings are configured:
+```bash
+# These settings are already in deploy.sh:
+GF_AUTH_PROXY_ENABLED=true
+GF_AUTH_PROXY_HEADER_NAME=X-Forwarded-User
+GF_AUTH_PROXY_AUTO_SIGN_UP=true
+GF_USERS_AUTO_ASSIGN_ORG_ROLE=Admin
+```
+
 ### Issue: Permission Denied in Logs
 ```bash
 # Container already runs as root, but if issues persist:
@@ -269,9 +307,13 @@ OAuth2 proxy sessions expire after 7 days. Users need to re-authenticate.
 - [ ] Set up dashboard provisioning
 
 ## Last Updated
-- **2025-09-01 23:07**: Initial deployment with Keycloak OAuth2
+- **2025-09-02 00:26**: ✅ **FIXED - Fully Operational with Automatic Login**
+  - Fixed OAuth2 proxy OIDC discovery issue using bypass configuration
+  - Configured Grafana auth proxy for header-based authentication
+  - Users now automatically logged in after Keycloak authentication
+  - All authenticated users get Admin role automatically
 - **2025-09-01 23:43**: Running with root user for permissions
-- **Note**: Auth proxy shows recent restart (stability issue?)
+- **2025-09-01 23:07**: Initial deployment with Keycloak OAuth2
 
 ---
 *For restart/recovery: Run `/home/administrator/projects/grafana/deploy.sh`*
