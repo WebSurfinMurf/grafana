@@ -37,12 +37,12 @@ docker rm grafana-auth-proxy 2>/dev/null || true
 
 # Ensure networks exist
 echo -e "${YELLOW}→ Ensuring networks exist...${NC}"
-docker network create traefik-proxy 2>/dev/null || echo "Network traefik-proxy already exists"
+docker network create traefik-net 2>/dev/null || echo "Network traefik-net already exists"
 docker network create monitoring-net 2>/dev/null || echo "Network monitoring-net already exists"
 docker network create keycloak-net 2>/dev/null || echo "Network keycloak-net already exists"
 docker network create grafana-net 2>/dev/null || echo "Network grafana-net already exists"
 
-# Deploy Grafana (on grafana-net, NOT on traefik-proxy)
+# Deploy Grafana (on grafana-net, NOT on traefik-net)
 echo -e "${YELLOW}→ Deploying Grafana...${NC}"
 docker run -d \
   --name grafana \
@@ -76,7 +76,7 @@ echo -e "${YELLOW}→ Deploying OAuth2 Proxy...${NC}"
 docker run -d \
   --name grafana-auth-proxy \
   --restart unless-stopped \
-  --network traefik-proxy \
+  --network traefik-net \
   -e OAUTH2_PROXY_PROVIDER=keycloak-oidc \
   -e OAUTH2_PROXY_CLIENT_ID=grafana \
   -e OAUTH2_PROXY_CLIENT_SECRET="$OAUTH2_PROXY_CLIENT_SECRET" \
