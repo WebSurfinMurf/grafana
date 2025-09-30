@@ -38,15 +38,17 @@ docker rm grafana-auth-proxy 2>/dev/null || true
 # Ensure networks exist
 echo -e "${YELLOW}→ Ensuring networks exist...${NC}"
 docker network create traefik-proxy 2>/dev/null || echo "Network traefik-proxy already exists"
-docker network create observability-net 2>/dev/null || echo "Network observability-net already exists"
+docker network create monitoring-net 2>/dev/null || echo "Network monitoring-net already exists"
 docker network create keycloak-net 2>/dev/null || echo "Network keycloak-net already exists"
+docker network create grafana-net 2>/dev/null || echo "Network grafana-net already exists"
 
-# Deploy Grafana
+# Deploy Grafana (on grafana-net, NOT on traefik-proxy)
 echo -e "${YELLOW}→ Deploying Grafana...${NC}"
 docker run -d \
   --name grafana \
   --restart unless-stopped \
-  --network observability-net \
+  --network grafana-net \
+  --network-alias grafana \
   --user root \
   -e GF_SECURITY_ADMIN_PASSWORD=admin \
   -e GF_INSTALL_PLUGINS=redis-datasource \
@@ -64,9 +66,10 @@ docker run -d \
   -v "$DATA_DIR:/var/lib/grafana" \
   grafana/grafana:latest
 
-# Connect to networks with proper aliases
+# Connect to additional networks
 echo -e "${YELLOW}→ Configuring network connections...${NC}"
-docker network connect --alias grafana traefik-proxy grafana
+docker network connect monitoring-net grafana
+docker network connect redis-net grafana
 
 # Deploy OAuth2 Proxy
 echo -e "${YELLOW}→ Deploying OAuth2 Proxy...${NC}"
@@ -105,12 +108,11 @@ docker run -d \
   -l traefik.http.services.grafana.loadbalancer.server.port=4180 \
   quay.io/oauth2-proxy/oauth2-proxy:latest
 
-# Connect OAuth2 proxy to keycloak network
-echo -e "${YELLOW}→ Connecting OAuth2 proxy to Keycloak network...${NC}"
+# Connect OAuth2 proxy to additional networks
+echo -e "${YELLOW}→ Connecting OAuth2 proxy to additional networks...${NC}"
 docker network connect keycloak-net grafana-auth-proxy
-
-# Connect OAuth2 proxy to observability network for Grafana access
-docker network connect observability-net grafana-auth-proxy
+docker network connect grafana-net grafana-auth-proxy
+docker network connect monitoring-net grafana-auth-proxy
 
 # Wait for containers to start
 echo -e "${YELLOW}→ Waiting for containers to start...${NC}"
