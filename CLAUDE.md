@@ -8,7 +8,7 @@ Grafana is the central visualization platform for the monitoring stack, providin
 - **URL**: https://grafana.ai-servicers.com
 - **Container**: grafana (running normally)
 - **Auth Container**: grafana-auth-proxy (running normally)
-- **Networks**: observability-net, traefik-proxy, keycloak-net
+- **Networks**: observability-net, traefik-net, keycloak-net
 - **Authentication**: Keycloak OAuth2 with automatic login (header-based auth)
 
 ## Authentication Flow
@@ -31,7 +31,7 @@ grafana-auth-proxy (:4180)
 ## File Locations
 - **Project**: `/home/administrator/projects/grafana/`
 - **Data**: `/home/administrator/projects/data/grafana/`
-- **Secrets**: `/home/administrator/projects/secrets/grafana.env`
+- **Secrets**: `$HOME/projects/secrets/grafana.env`
 - **Deploy Script**: `/home/administrator/projects/grafana/deploy.sh`
 - **Keycloak Setup**: `/home/administrator/projects/grafana/setup-keycloak.sh`
 - **Manual Setup**: `/home/administrator/projects/grafana/manual-keycloak-setup.md`
@@ -64,7 +64,7 @@ grafana-auth-proxy (:4180)
 ```bash
 # grafana-auth-proxy container
 --name grafana-auth-proxy
---network traefik-proxy
+--network traefik-net
 --network keycloak-net  # CRITICAL: Must be on both networks
 --network observability-net  # To reach Grafana
 -e OAUTH2_PROXY_PROVIDER=keycloak-oidc
@@ -147,9 +147,9 @@ docker exec -it grafana /bin/bash
 
 ## Network Requirements
 - **grafana**: Must be on `observability-net` (to be reached by proxy and reach Loki)
-- **grafana**: Must be on `traefik-proxy` (for network alias)
+- **grafana**: Must be on `traefik-net` (for network alias)
 - **grafana-auth-proxy**: Must be on THREE networks:
-  - `traefik-proxy` (for Traefik routing)
+  - `traefik-net` (for Traefik routing)
   - `keycloak-net` (for token validation)
   - `observability-net` (to reach Grafana)
 
@@ -181,7 +181,7 @@ docker exec grafana-auth-proxy ping -c 1 grafana
 docker logs grafana-auth-proxy --tail 50
 
 # Verify Keycloak client secret
-grep CLIENT_SECRET /home/administrator/projects/secrets/grafana.env
+grep CLIENT_SECRET $HOME/projects/secrets/grafana.env
 
 # Check user session
 curl https://grafana.ai-servicers.com/oauth2/userinfo

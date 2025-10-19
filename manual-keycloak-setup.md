@@ -41,7 +41,7 @@
    - Copy the "Client secret" value
 
 6. **Update Environment File**
-   - Edit `/home/administrator/projects/secrets/grafana.env`
+   - Edit `$HOME/projects/secrets/grafana.env`
    - Replace `REPLACE_WITH_KEYCLOAK_SECRET` with the copied secret
 
 ## Alternative: Generate Random Secret
@@ -54,7 +54,7 @@ SECRET=$(openssl rand -base64 32 | tr -d '\n')
 echo "Generated secret: $SECRET"
 
 # Update the env file
-sed -i "s/OAUTH2_PROXY_CLIENT_SECRET=.*/OAUTH2_PROXY_CLIENT_SECRET=$SECRET/" /home/administrator/projects/secrets/grafana.env
+sed -i "s/OAUTH2_PROXY_CLIENT_SECRET=.*/OAUTH2_PROXY_CLIENT_SECRET=$SECRET/" $HOME/projects/secrets/grafana.env
 ```
 
 Then update the client in Keycloak with this secret.

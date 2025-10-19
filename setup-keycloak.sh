@@ -51,11 +51,11 @@ echo -e "${GREEN}✓ Keycloak client 'grafana' created successfully${NC}"
 echo ""
 echo "Client Secret: ${SECRET}"
 echo ""
-echo "Update /home/administrator/projects/secrets/grafana.env with:"
+echo "Update $HOME/projects/secrets/grafana.env with:"
 echo "OAUTH2_PROXY_CLIENT_SECRET=${SECRET}"
 
 # Update the env file automatically
-SECRETS_FILE="/home/administrator/projects/secrets/grafana.env"
+SECRETS_FILE="$HOME/projects/secrets/grafana.env"
 if [ -f "$SECRETS_FILE" ]; then
     sed -i "s/OAUTH2_PROXY_CLIENT_SECRET=.*/OAUTH2_PROXY_CLIENT_SECRET=${SECRET}/" "$SECRETS_FILE"
     echo -e "${GREEN}✓ Updated $SECRETS_FILE with client secret${NC}"

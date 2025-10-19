@@ -12,7 +12,7 @@ echo -e "${GREEN}=== Grafana Deployment with Keycloak OAuth2 ===${NC}"
 # Project paths
 PROJECT_DIR="/home/administrator/projects/grafana"
 DATA_DIR="/home/administrator/projects/data/grafana"
-SECRETS_DIR="/home/administrator/projects/secrets"
+SECRETS_DIR="$HOME/projects/secrets"
 
 # Load environment variables
 if [ ! -f "$SECRETS_DIR/grafana.env" ]; then
