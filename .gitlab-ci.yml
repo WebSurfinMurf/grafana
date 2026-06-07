@@ -1,0 +1,109 @@
+# GitLab CI for Grafana dashboards & provisioning.
+#
+# Source of truth is GitLab. Pushes to main trigger validate + deploy + test.
+# After a successful deploy, the mirror stage pushes to GitHub as a backup.
+
+stages:
+  - validate
+  - deploy
+  - test
+  - mirror
+
+variables:
+  ADMIN_HOME: /home/administrator
+  SECRETS_FILE: /home/administrator/projects/secrets/grafana.env
+
+# Lint dashboard JSON files for syntax errors.
+validate:
+  stage: validate
+  tags: [shell, linuxserver, administrator]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - echo "Validating JSON dashboard files..."
+    - |
+      ERRORS=0
+      for f in $(find . -name '*.json' -not -path './.git/*'); do
+        if python3 -m json.tool "$f" > /dev/null 2>&1; then
+          echo "  OK: $f"
+        else
+          echo "  FAIL: $f"
+          ERRORS=$((ERRORS + 1))
+        fi
+      done
+      if [ "$ERRORS" -gt 0 ]; then
+        echo "$ERRORS JSON file(s) failed validation"
+        exit 1
+      fi
+      echo "All JSON files valid."
+    - echo "Validating deploy.sh syntax..."
+    - bash -n deploy.sh
+
+# Deploy Grafana on push to main.
+deploy:
+  stage: deploy
+  tags: [shell, linuxserver, administrator]
+  needs: [validate]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+  script:
+    - export HOME="$ADMIN_HOME"
+    - set -a; . "$SECRETS_FILE"; set +a
+    - ./deploy.sh
+  environment:
+    name: production
+    url: https://grafana.ai-servicers.com
+
+# Post-deploy health check.
+test:
+  stage: test
+  tags: [shell, linuxserver, administrator]
+  needs: [deploy]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+  script:
+    - sleep 10
+    - |
+      echo "Checking Grafana container health..."
+      if docker ps --format '{{.Names}}' | grep -q '^grafana$'; then
+        echo "  grafana container: running"
+      else
+        echo "  grafana container: NOT running"
+        exit 1
+      fi
+      if docker ps --format '{{.Names}}' | grep -q '^grafana-auth-proxy$'; then
+        echo "  grafana-auth-proxy container: running"
+      else
+        echo "  grafana-auth-proxy container: NOT running"
+        exit 1
+      fi
+    - |
+      echo "Checking Grafana API health..."
+      HEALTH=$(docker exec grafana wget -qO- http://localhost:3000/api/health 2>/dev/null || true)
+      if echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('database')=='ok' else 1)" 2>/dev/null; then
+        echo "  Grafana API: healthy"
+      else
+        echo "  Grafana API: unhealthy or unreachable"
+        echo "  Response: $HEALTH"
+        exit 1
+      fi
+
+# Push mirror: GitLab -> GitHub (backup).
+mirror:
+  stage: mirror
+  tags: [shell, linuxserver, administrator]
+  needs: [test]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+  script:
+    - ./scripts/mirror-to-github.sh
+  allow_failure: true
